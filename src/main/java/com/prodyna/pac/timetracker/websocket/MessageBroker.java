@@ -6,6 +6,8 @@ package com.prodyna.pac.timetracker.websocket;
 
 import com.prodyna.pac.timetracker.server.event.BookingForApporvalEvent;
 import com.prodyna.pac.timetracker.server.event.BookingForReworkEvent;
+import com.prodyna.pac.timetracker.websocket.connector.ClusterConnector;
+import javax.inject.Inject;
 import javax.inject.Singleton;
 
 /**
@@ -23,6 +25,9 @@ public class MessageBroker implements MessageBrokerAPI {
 
     private final MessageEndpoint msgEndpoint;
 
+    @Inject
+    private ClusterConnector cluster;
+
     /**
      * Default constructor.
      */
@@ -30,15 +35,27 @@ public class MessageBroker implements MessageBrokerAPI {
         msgEndpoint = new MessageEndpoint();
     }
 
+    @Override
     public void sendApproval(BookingForApporvalEvent approvalEvent) {
         send(approvalEvent.getReceiver(), approvalEvent.getMessage());
     }
 
+    @Override
     public void sendRework(BookingForReworkEvent reworkEvent) {
         send(reworkEvent.getReceiver(), reworkEvent.getMessage());
     }
 
+    /**
+     * Send the message to the localy registered user or broadcast to cluster to
+     * chekc if the user is logged in somewhere else.
+     *
+     * @param eMail
+     * @param message
+     */
     private void send(String eMail, String message) {
-        msgEndpoint.sendMessage(eMail, message);
+        boolean receiverFound = msgEndpoint.sendMessage(eMail, message);
+        if (!receiverFound) {
+            cluster.broadcastInCluster(eMail, message);
+        }
     }
 }
