@@ -4,9 +4,14 @@
  */
 package com.prodyna.pac.timetracker.websocket;
 
-import java.time.Instant;
+import java.io.StringReader;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import javax.inject.Inject;
+import javax.json.Json;
+import javax.json.JsonObject;
+import javax.json.JsonObjectBuilder;
 import javax.websocket.OnClose;
 import javax.websocket.OnError;
 import javax.websocket.OnMessage;
@@ -14,9 +19,6 @@ import javax.websocket.OnOpen;
 import javax.websocket.RemoteEndpoint;
 import javax.websocket.Session;
 import javax.websocket.server.ServerEndpoint;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 
 /**
@@ -25,7 +27,8 @@ import org.slf4j.Logger;
  * a specific client rather than a brodcast.
  * <p>
  * The message format is:</p>
- * {"event":"_the_event_name_","data":"_the_event_message_"}
+ * {"event":"_the_event_name_",
+ * "data":{"timestamp":"_ISO_DATE_TIME_","message":"_the_event_message_"} }
  *
  * @author apatrikis
  *
@@ -72,13 +75,8 @@ public class MessageEndpoint {
      * @return The senders email.
      */
     private String getEmail(String message) {
-        try {
-            JSONObject json = (JSONObject) new JSONParser().parse(message);
-            return json.get("event").toString();
-        } catch (ParseException ex) {
-            log.warn("Email not found", ex);
-            return "";
-        }
+        JsonObject jo = Json.createReader(new StringReader(message)).readObject();
+        return jo.getString("event");
     }
 
     /**
@@ -88,13 +86,8 @@ public class MessageEndpoint {
      * @return The plain message (without payload).
      */
     private String getMessage(String message) {
-        try {
-            JSONObject json = (JSONObject) new JSONParser().parse(message);
-            return json.get("data").toString();
-        } catch (ParseException ex) {
-            log.warn("Data not found", ex);
-            return "";
-        }
+        JsonObject jo = Json.createReader(new StringReader(message)).readObject();
+        return jo.getJsonObject("data").getString("message");
     }
 
     /**
@@ -173,9 +166,14 @@ public class MessageEndpoint {
      * @return The message object as {@code JSON}.
      */
     private String createMessageForClient(ServerMessageType messageType, String message) {
-        JSONObject json = new JSONObject();
-        json.put("event", messageType.toString());
-        json.put("data", String.format("%s: %s", Instant.now().toString(), message));
-        return json.toJSONString();
+        JsonObjectBuilder job = Json.createObjectBuilder();
+        JsonObjectBuilder data = Json.createObjectBuilder();
+
+        data.add("timestamp", DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.now()));
+        data.add("message", message);
+        job.add("event", messageType.toString());
+        job.add("data", data);
+
+        return job.build().toString();
     }
 }

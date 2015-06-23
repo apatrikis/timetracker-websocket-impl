@@ -4,11 +4,14 @@
  */
 package com.prodyna.pac.timetracker.websocket;
 
+import com.prodyna.pac.timetracker.cluster.ClusterMessage;
+import com.prodyna.pac.timetracker.jms.OutgoingMessage;
 import com.prodyna.pac.timetracker.server.event.BookingForApporvalEvent;
 import com.prodyna.pac.timetracker.server.event.BookingForReworkEvent;
-import com.prodyna.pac.timetracker.websocket.connector.ClusterConnector;
+import javax.enterprise.event.Event;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.slf4j.Logger;
 
 /**
  * This class is responsible for routing messgaes between
@@ -26,7 +29,11 @@ public class MessageBroker implements MessageBrokerAPI {
     private final MessageEndpoint msgEndpoint;
 
     @Inject
-    private ClusterConnector cluster;
+    private Logger log;
+
+    @Inject
+    @OutgoingMessage
+    private Event<ClusterMessage> cluster;
 
     /**
      * Default constructor.
@@ -45,6 +52,12 @@ public class MessageBroker implements MessageBrokerAPI {
         send(reworkEvent.getReceiver(), reworkEvent.getMessage());
     }
 
+    @Override
+    public void receive(ClusterMessage message) {
+        log.debug("Broker incomming messsage");
+        msgEndpoint.sendMessage(message.getReceiver(), message.getMessage());
+    }
+
     /**
      * Send the message to the localy registered user or broadcast to cluster to
      * chekc if the user is logged in somewhere else.
@@ -53,9 +66,10 @@ public class MessageBroker implements MessageBrokerAPI {
      * @param message
      */
     private void send(String eMail, String message) {
+        log.debug("Broker outgoing messsage");
         boolean receiverFound = msgEndpoint.sendMessage(eMail, message);
         if (!receiverFound) {
-            cluster.broadcastInCluster(eMail, message);
+            cluster.fire(new ClusterMessage("", eMail, message));
         }
     }
 }
