@@ -68,7 +68,7 @@ public class MessageBroker implements MessageBrokerAPI {
     private void send(String eMail, String message) {
         log.debug("Broker outgoing messsage");
         boolean receiverFound = msgEndpoint.sendMessage(eMail, message);
-        if (!receiverFound) {
+        if (receiverFound == false) {
             cluster.fire(new ClusterMessage("", eMail, message));
         }
     }
